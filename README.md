@@ -1,7 +1,7 @@
 # nvim-apex-coverage
 
 [![Lua](https://img.shields.io/badge/Lua-blue.svg?style=flat-square&logo=lua)](https://www.lua.org)
-[![Neovim >= 0.8](https://img.shields.io/badge/Neovim-%3E%3D%200.8-blueviolet.svg?style=flat-square)](https://neovim.io/)
+[![Neovim >= 0.10](https://img.shields.io/badge/Neovim-%3E%3D%200.10-blueviolet.svg?style=flat-square)](https://neovim.io/)
 
 A Neovim plugin to fetch and display Salesforce Apex code coverage directly within the editor. It utilizes the `sf` CLI to query coverage data and visualizes it using Neovim's sign column.
 
@@ -16,8 +16,7 @@ A Neovim plugin to fetch and display Salesforce Apex code coverage directly with
 
 ## 📋 Requirements
 
-*   [Neovim](https://neovim.io/) >= 0.8
-*   [plenary.nvim](https://github.com/nvim-lua/plenary.nvim)
+*   [Neovim](https://neovim.io/) >= 0.10 (uses `vim.system` for async)
 *   [Salesforce CLI (`sf`)](https://developer.salesforce.com/tools/sfdxcli) installed and authenticated to a target org.
 
 ## 📦 Installation
@@ -28,17 +27,14 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 -- Add to your lazy.nvim plugin configuration
 return {
     "PreziosiRaffaele/nvim-apex-coverage",
-    dependencies = { "nvim-lua/plenary.nvim" },
-    -- Optional: Lazy load on Apex file types for faster startup
-    ft = { "apex", "apexclass", "trigger" }, -- Adjust filetypes as needed
+    ft = { "apex", "apexclass", "trigger" }, 
     opts = {
       -- Configuration options (see below)
       -- mappings = {
       --   coverage = '<leader>tc', -- Example custom mapping
       --   clean = '<leader>tC',    -- Example custom mapping
       -- }
-    },
-    config = true, 
+    }
 }
 ```
 
@@ -97,4 +93,3 @@ This plugin is specifically designed to **fetch and visualize Apex code coverage
 For a more comprehensive Salesforce development experience within Neovim, including running tests, deploying and retrieving metadata, and more, check out:
 
 *   [xixiaofinland/sf.nvim](https://github.com/xixiaofinland/sf.nvim)
-

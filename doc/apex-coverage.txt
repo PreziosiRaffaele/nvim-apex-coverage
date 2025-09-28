@@ -1,4 +1,4 @@
-*apex-coverage.txt*    For Neovim version 0.8 and higher    Last change: 2025 May 03
+*apex-coverage.txt*    For Neovim version 0.10 and higher    Last change: 2025 May 03
 
 ==============================================================================
 CONTENTS                                           *apex-coverage-contents*
@@ -15,8 +15,7 @@ INTRODUCTION                                     *apex-coverage-introduction*
 `nvim-apex-coverage` is a Neovim plugin that fetches and displays Salesforce Apex code coverage information directly within the editor. It uses the `sf` CLI to query coverage data and displays it using Neovim's sign column.
 
 Requires:
-- Neovim >= 0.8
-- plenary.nvim
+- Neovim >= 0.10
 - Salesforce CLI (`sf`) installed and authenticated to an org.
 
 ==============================================================================
@@ -78,4 +77,3 @@ Default mappings (can be changed via |apex-coverage-configuration|):
 
 
 vim:tw=78:ts=8:sw=4:sts=4:et:ft=help:norl:
-

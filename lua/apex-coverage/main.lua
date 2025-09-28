@@ -1,7 +1,6 @@
 ---@diagnostic disable: undefined-global
 
 local M = {}
-local Job = require('plenary.job')
 
 -- Create our own notification system
 local notify = {
@@ -39,85 +38,97 @@ local function get_current_class_name()
     return vim.fn.fnamemodify(filename, ':r')
 end
 
--- Execute SOQL query using sf cli with plenary.job
-local function execute_soql_query(query)
-    -- Use plenary.job for async command execution
-    local args = { 'data', 'query', '-t', '-q', query, '--json' }
-    local job = Job:new({
-        command = 'sf',
-        args = args,
-    })
+-- Prefer vim.json.decode if available (Neovim >= 0.10)
+local json_decode = (vim.json and vim.json.decode) or vim.fn.json_decode
 
-    local ok, result_code = pcall(function()
-        return job:sync(30000) -- 30 second timeout
-    end)
+-- Run multiple async tasks in parallel and invoke done when all complete
+local function when_all(tasks, done)
+    local remaining = #tasks
+    local results = {}
+    if remaining == 0 then
+        return done(results)
+    end
+    for i, task in ipairs(tasks) do
+        task(function(res)
+            results[i] = res or {}
+            remaining = remaining - 1
+            if remaining == 0 then
+                done(results)
+            end
+        end)
+    end
+end
 
-    -- Command executed successfully
-    if ok then
-        -- Get the output and concatenate it properly
-        local output = table.concat(job:result(), '')
-        if not output or output == '' then
-            return {}
+-- Execute SOQL query using sf cli asynchronously with vim.system
+local function execute_soql_query_async(query, cb)
+    local args = { 'sf', 'data', 'query', '-t', '-q', query, '--json' }
+
+    -- Ensure callback runs on main thread
+    local callback = vim.schedule_wrap(function(obj)
+        local code = obj.code or -1
+        local stdout = obj.stdout or ''
+        local stderr = obj.stderr or ''
+
+        if code ~= 0 then
+            if stderr ~= '' then
+                notify.error('Error executing query: ' .. stderr)
+            else
+                notify.error('Failed to execute SOQL query')
+            end
+            return cb({})
         end
 
-        local success, parsed_result = pcall(vim.fn.json_decode, output)
-        if success then
-            if parsed_result.result then
-                -- Return empty array if no records found, rather than failing
-                return parsed_result.result.records or {}
-            end
+        if stdout == '' then
+            return cb({})
+        end
+
+        local ok, parsed = pcall(json_decode, stdout)
+        if ok and parsed and parsed.result then
+            return cb(parsed.result.records or {})
         else
             notify.error('Failed to parse JSON output from sf cli')
+            return cb({})
         end
-    else
-        -- Command execution failed
-        local error_output = table.concat(job:stderr_result(), '\n')
-        if error_output ~= '' then
-            notify.error('Error executing query: ' .. error_output)
-        else
-            notify.error('Failed to execute SOQL query')
-        end
-    end
+    end)
 
-    return {}
+    vim.system(args, { text = true }, callback)
 end
 
 -- Get code coverage data from Salesforce
-local function fetch_coverage_data(class_name)
-    -- Show loading notification
+local function fetch_coverage_data_async(class_name, cb)
     notify.info('Fetching coverage data for ' .. class_name .. '...')
 
-    -- Query for individual test method coverage
-    local query1 = [[SELECT ApexTestClass.Name, TestMethodName, NumLinesCovered, NumLinesUncovered, Coverage
+    local query_methods = [[SELECT ApexTestClass.Name, TestMethodName, NumLinesCovered, NumLinesUncovered, Coverage
                   FROM ApexCodeCoverage
                   WHERE ApexClassOrTrigger.name = ']] .. class_name .. [['
                   ORDER BY createddate DESC LIMIT 20]]
 
-    -- Query for aggregated coverage
-    local query2 = [[SELECT ApexClassOrTrigger.Name, NumLinesCovered, NumLinesUncovered, Coverage
+    local query_total = [[SELECT ApexClassOrTrigger.Name, NumLinesCovered, NumLinesUncovered, Coverage
                   FROM ApexCodeCoverageAggregate
                   WHERE ApexClassOrTrigger.Name = ']] .. class_name .. [[']]
 
-    -- Run queries
-    local method_coverage = execute_soql_query(query1)
-    local total_coverage = execute_soql_query(query2)
+    when_all({
+        function(done) execute_soql_query_async(query_methods, done) end,
+        function(done) execute_soql_query_async(query_total, done) end,
+    }, function(results)
+        local method_coverage = results[1] or {}
+        local total_coverage = results[2] or {}
 
-    -- Process results
-    if method_coverage and #method_coverage > 0 then
-        local method_map = {}
-        for _, record in ipairs(method_coverage) do
-            local key = record.ApexTestClass.Name .. '.' .. record.TestMethodName
-            method_map[key] = record
+        if method_coverage and #method_coverage > 0 then
+            local method_map = {}
+            for _, record in ipairs(method_coverage) do
+                local key = record.ApexTestClass.Name .. '.' .. record.TestMethodName
+                method_map[key] = record
+            end
+
+            coverage_data.method_coverage_map[class_name] = method_map
+            coverage_data.total_coverage_map[class_name] = total_coverage or {}
+
+            notify.success('Coverage data fetched successfully')
+            return cb(true)
         end
-
-        coverage_data.method_coverage_map[class_name] = method_map
-        coverage_data.total_coverage_map[class_name] = total_coverage
-
-        notify.success('Coverage data fetched successfully')
-        return true
-    end
-
-    return false
+        return cb(false)
+    end)
 end
 
 -- Highlight covered and uncovered lines
@@ -227,19 +238,21 @@ function M.get_coverage()
 
     -- Check if we need to fetch data
     if not coverage_data.method_coverage_map[class_name] then
-        local success = fetch_coverage_data(class_name)
-        if not success then
-            notify.error('No coverage found for ' .. class_name .. '. Run tests first!')
-            return
-        end
+        return fetch_coverage_data_async(class_name, function(success)
+            if not success then
+                notify.error('No coverage found for ' .. class_name .. '. Run tests first!')
+                return
+            end
+            show_coverage_selection(class_name)
+        end)
     end
 
-    -- Show selection menu
+    -- Show selection menu immediately if cached
     show_coverage_selection(class_name)
 end
 
 -- Setup function to register the user command
-function M.setup()
+function M.setup(opts)
     vim.api.nvim_create_user_command('ApexCoverage', function()
         M.get_coverage()
     end, {
