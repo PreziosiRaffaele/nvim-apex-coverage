@@ -5,6 +5,10 @@
 
 A Neovim plugin to fetch and display Salesforce Apex code coverage directly within the editor. It utilizes the `sf` CLI to query coverage data and visualizes it using Neovim's sign column.
 
+## Demo
+<!-- Demo source: https://github.com/nvim-mini/assets/blob/main/demo/demo-pick.mp4 -->
+https://github.com/user-attachments/assets/7ddd79df-e5fa-4e7c-8a2f-e1c83b3fd7ab
+
 ## ✨ Features
 
 *   Fetches Apex code coverage data using the Salesforce CLI (`sf`).
