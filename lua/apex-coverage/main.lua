@@ -108,8 +108,12 @@ local function fetch_coverage_data_async(class_name, cb)
                   WHERE ApexClassOrTrigger.Name = ']] .. class_name .. [[']]
 
     when_all({
-        function(done) execute_soql_query_async(query_methods, done) end,
-        function(done) execute_soql_query_async(query_total, done) end,
+        function(done)
+            execute_soql_query_async(query_methods, done)
+        end,
+        function(done)
+            execute_soql_query_async(query_total, done)
+        end,
     }, function(results)
         local method_coverage = results[1] or {}
         local total_coverage = results[2] or {}
@@ -252,7 +256,7 @@ function M.get_coverage()
 end
 
 -- Setup function to register the user command
-function M.setup(opts)
+function M.setup()
     vim.api.nvim_create_user_command('ApexCoverage', function()
         M.get_coverage()
     end, {
@@ -266,28 +270,6 @@ function M.setup(opts)
         desc = 'Clear Apex code coverage signs',
         force = true,
     })
-
-    -- Merge user options with defaults
-    local defaults = {
-        mappings = {
-            coverage = '<leader>tc',
-            clean = '<leader>tC',
-        },
-    }
-    local config = vim.tbl_deep_extend('force', defaults, opts or {})
-
-    -- Add leader tc shortcut for ApexCoverage
-    vim.keymap.set('n', config.mappings.coverage, ':ApexCoverage<CR>', {
-        desc = 'Show Apex code coverage for current class/trigger',
-        silent = true,
-    })
-
-    -- Add leader tC shortcut for ApexCoverageClean
-    vim.keymap.set('n', config.mappings.clean, ':ApexCoverageClean<CR>', {
-        desc = 'Clear Apex code coverage signs',
-        silent = true,
-    })
-
     return M
 end
 
